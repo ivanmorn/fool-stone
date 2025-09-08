@@ -1,0 +1,25 @@
+export type Stone = '金'|'木'|'水'|'火'|'土'|'贤'|'愚';
+export const STONES: Stone[] = ['金','木','水','火','土','贤','愚'];
+export type Phase = 'select'|'cast'|'end';
+
+export interface Player { id: string; name: string; isFool?: boolean; }
+export interface Score { pub: number; sec: number; }
+export interface Pick { playerId: string; flask: number; stone: Stone; }
+
+export interface Game {
+  id: string;
+  seed: string;
+  round: number;
+  players: Player[];
+  order: string[];                         // 本回合顺位
+  scores: Record<string, Score>;
+  hands: Record<string, Stone | null>;
+  phase: Phase;
+
+  flasks: Record<number, Stone>;           // 可选烧瓶
+  discarded: number[];                     // 被弃的烧瓶号
+  picks: Pick[];                           // 已选记录（5 条即选完）
+  initialHolder: Record<Stone, string|null>; // 本回合石头初始持有者
+  logs: string[];                          // 公开日志
+  castIdx: number;                         // 施法顺序指针（占位）
+}

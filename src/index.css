@@ -1,0 +1,9 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 建议保留一行，避免移动端 100vh 问题 */
+html, body, #root { height: 100%; }
+
+/* 可选：只保留最小 reset，不要再写主题色/按钮样式 */
+body { margin: 0; }
