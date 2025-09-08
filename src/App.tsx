@@ -76,7 +76,7 @@ export default function App() {
 
           {/* 复盘：身份与最终持有（显示本回合分数变化） */}
           <div>
-            <div className="font-medium mb-2">复盘：身份与最终持有（最终回合分数变化）</div>
+            <div className="font-medium mb-2">身份与最终持有（最终回合分数变化）</div>
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left border-b">
