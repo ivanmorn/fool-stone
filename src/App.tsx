@@ -18,10 +18,10 @@ export default function App() {
   const foolPrankUsed = useGame(s => s.foolPrankUsed);
   const roundStartScores = useGame(s => s.roundStartScores);
 
-  // —— 天象占卜（新增） —— //
-  const auguryStone = useGame(s => s.auguryStone);           // 当前回合抽到的天象（可为空）
-  const rollAugury   = useGame(s => s.rollAugury);           // 进行一次“天象占卜”
-  const clearAugury  = useGame(s => s.clearAugury);          // 清空（回合切换时）
+  // —— 天象占卜（从 game 对象读取；第3回合起可能有值） —— //
+  const omenStone = useGame(
+    s => (s.game as any)?.omenStone as (typeof CAST_ORDER)[number] | null
+  );
 
   // —— 动作 —— //
   const newGame = useGame(s => s.newGame);
@@ -49,19 +49,6 @@ export default function App() {
   useEffect(() => {
     if (finalLogRef.current) finalLogRef.current.scrollTop = finalLogRef.current.scrollHeight;
   }, [isOver, g?.logs.length]);
-
-  // —— 天象占卜触发：第3回合起、施法阶段、且本回合还没抽过 —— //
-  useEffect(() => {
-    if (!g) return;
-    // 回合切换时清空
-    //（如果你的 store 已在“新回合开始”时清空了，这句可以保留也可去掉，双保险）
-    if (g.phase === 'select' && auguryStone) {
-      clearAugury();
-    }
-    if (g.round >= 3 && g.phase === 'cast' && !auguryStone) {
-      rollAugury(); // 抽取一个炼金石作为本回合增益
-    }
-  }, [g?.round, g?.phase, auguryStone, rollAugury, clearAugury, g]);
 
   // —— 规则弹窗 —— //
   const RulesModal = () => (
@@ -306,7 +293,7 @@ export default function App() {
         </button>
       </div>
 
-      {/* 顶部信息：阈值/回合阶段 + 天象占卜 */}
+      {/* 顶部信息：阈值/回合阶段 + 天象占卜（第3回合起在整个回合内显示） */}
       <div className="p-3 border rounded space-y-2">
         <div className="flex items-center justify-between text-sm">
           <span className="text-gray-600">终局阈值：明分 ≥ {endThreshold}</span>
@@ -315,10 +302,9 @@ export default function App() {
           </span>
         </div>
 
-        {/* 新增：天象占卜公告 */}
-        {g.round >= 3 && g.phase === 'cast' && auguryStone && (
+        {g.round >= 3 && omenStone && (
           <div className="text-sm text-blue-700 bg-blue-50 border border-blue-200 rounded px-2 py-1">
-            天象占卜：本回合【<b>{auguryStone}</b>】效果增强
+            天象占卜：本回合【<b>{omenStone}</b>】效果增强（仅当回合有效）
           </div>
         )}
       </div>
