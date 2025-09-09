@@ -1,8 +1,10 @@
+// src/App.tsx
 import { useEffect, useRef, useState } from 'react';
 import { useGame } from './store/game';
 import './index.css';
 
 const CAST_ORDER = ['金', '木', '水', '火', '土', '贤', '愚'] as const;
+type Stone = typeof CAST_ORDER[number];
 
 export default function App() {
   // —— 全局状态 —— //
@@ -15,6 +17,11 @@ export default function App() {
   const nextFlaskMap = useGame(s => s.nextFlaskMap);
   const foolPrankUsed = useGame(s => s.foolPrankUsed);
   const roundStartScores = useGame(s => s.roundStartScores);
+
+  // —— 天象占卜（新增） —— //
+  const auguryStone = useGame(s => s.auguryStone);           // 当前回合抽到的天象（可为空）
+  const rollAugury   = useGame(s => s.rollAugury);           // 进行一次“天象占卜”
+  const clearAugury  = useGame(s => s.clearAugury);          // 清空（回合切换时）
 
   // —— 动作 —— //
   const newGame = useGame(s => s.newGame);
@@ -31,11 +38,7 @@ export default function App() {
   const [fireTarget, setFireTarget] = useState<string | null>(null);
   const [names, setNames] = useState(['甲', '乙', '丙', '丁', '戊']);
   const [thresholdSel, setThresholdSel] = useState<number>(endThreshold);
-
-
-  // 新增：规则弹窗开关
   const [showRules, setShowRules] = useState(false);
-
 
   // —— 日志自动滚动 —— //
   const logRef = useRef<HTMLDivElement | null>(null);
@@ -47,26 +50,38 @@ export default function App() {
     if (finalLogRef.current) finalLogRef.current.scrollTop = finalLogRef.current.scrollHeight;
   }, [isOver, g?.logs.length]);
 
-    const RulesModal = () => (
+  // —— 天象占卜触发：第3回合起、施法阶段、且本回合还没抽过 —— //
+  useEffect(() => {
+    if (!g) return;
+    // 回合切换时清空
+    //（如果你的 store 已在“新回合开始”时清空了，这句可以保留也可去掉，双保险）
+    if (g.phase === 'select' && auguryStone) {
+      clearAugury();
+    }
+    if (g.round >= 3 && g.phase === 'cast' && !auguryStone) {
+      rollAugury(); // 抽取一个炼金石作为本回合增益
+    }
+  }, [g?.round, g?.phase, auguryStone, rollAugury, clearAugury, g]);
+
+  // —— 规则弹窗 —— //
+  const RulesModal = () => (
     <div
       className="fixed inset-0 bg-black/40 flex items-center justify-center z-50"
       onClick={() => setShowRules(false)}
     >
       <div
-        className="bg-white rounded-xl p-5 w-[90%] max-w-sm shadow-xl"
+        className="bg-white rounded-xl p-5 w-[90%] max-w-sm max-h-[80vh] overflow-auto shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="text-lg font-bold mb-2">获取游戏规则</div>
         <p className="text-sm text-gray-700">
           关注 <b>「JokerGame愚人博弈」</b> 微信服务号，进入后台，文字回复 <b>愚者之石</b> 即可获得游戏规则。
         </p>
-
         <img
           src="/wechat-qrcode.jpg"
           alt="JokerGame愚人博弈 微信服务号二维码"
           className="w-40 h-40 mx-auto my-3 rounded"
         />
-
         <button
           className="w-full px-3 py-2 rounded border mt-2"
           onClick={() => setShowRules(false)}
@@ -84,8 +99,8 @@ export default function App() {
     return (
       <div className="min-h-screen p-6 max-w-xl mx-auto space-y-4 bg-white">
         <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">愚者之石 · 终局结算</h1>
-        <button
+          <h1 className="text-2xl font-bold">愚者之石 · 终局结算</h1>
+          <button
             className="text-sm px-3 py-1 rounded border hover:bg-gray-50"
             onClick={() => setShowRules(true)}
           >
@@ -94,7 +109,6 @@ export default function App() {
         </div>
         <div className="text-sm text-gray-600">阈值：明分 ≥ {endThreshold}</div>
 
-        {/* 复盘：最终烧瓶 → 炼金石 */}
         <div className="p-3 border rounded space-y-4">
           <div>
             <div className="font-medium mb-2">复盘：最终烧瓶 → 炼金石</div>
@@ -102,7 +116,6 @@ export default function App() {
               <div className="grid grid-cols-7 gap-2 text-center">
                 {Array.from({ length: 7 }, (_, i) => i + 1).map(n => (
                   <div key={n} className="border rounded p-2">
-                    {/* 修复：用 flex + gap 固定“烧瓶”和数字的间距，并用等宽数字避免 1 变窄贴到前一个字 */}
                     <div className="text-xs text-gray-500 flex items-center justify-center gap-1 leading-none">
                       <span>烧瓶</span>
                       <span className="tabular-nums">{n}</span>
@@ -111,13 +124,11 @@ export default function App() {
                   </div>
                 ))}
               </div>
-
             ) : (
               <div className="text-sm text-gray-500">（无数据）</div>
             )}
           </div>
 
-          {/* 复盘：身份与最终持有（显示本回合分数变化） */}
           <div>
             <div className="font-medium mb-2">身份与最终持有（最终回合分数变化）</div>
             <table className="w-full text-sm">
@@ -154,7 +165,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* 最终排名 */}
         <div className="p-3 border rounded">
           <div className="font-medium mb-2">最终排名</div>
           <table className="w-full text-sm">
@@ -193,7 +203,6 @@ export default function App() {
           再来一局（沿用当前玩家）
         </button>
 
-        {/* 公开日志（自动滚动，修复编号裁切） */}
         <div className="p-3 border rounded">
           <div className="font-medium mb-1">公开日志</div>
           <div ref={finalLogRef} className="max-h-72 overflow-auto px-2">
@@ -215,10 +224,9 @@ export default function App() {
   if (!g) {
     return (
       <div className="min-h-screen p-6 max-w-xl mx-auto space-y-4 bg-gray-50">
-      <div className="flex items-center justify-between">
-
-        <h1 className="text-2xl font-bold">愚者之石 · MVP</h1>
-        <button
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold">愚者之石 · MVP</h1>
+          <button
             className="text-sm px-3 py-1 rounded border hover:bg-gray-50"
             onClick={() => setShowRules(true)}
           >
@@ -247,9 +255,7 @@ export default function App() {
             onChange={e => setThresholdSel(parseInt(e.target.value, 10))}
           >
             {[5, 6, 7, 8, 9, 10, 11, 12].map(v => (
-              <option key={v} value={v}>
-                {v}
-              </option>
+              <option key={v} value={v}>{v}</option>
             ))}
           </select>
         </div>
@@ -263,7 +269,8 @@ export default function App() {
         >
           开始对局
         </button>
-       {showRules && <RulesModal />}
+
+        {showRules && <RulesModal />}
       </div>
     );
   }
@@ -274,14 +281,11 @@ export default function App() {
   const pickerIndex = g.picks.length;
   const currentPickerId = g.order[pickerIndex];
   const currentPickerName = g.players.find(p => p.id === currentPickerId)?.name ?? currentPickerId;
-  const availableFlasks = Object.keys(g.flasks)
-    .map(n => Number(n))
-    .sort((a, b) => a - b);
+  const availableFlasks = Object.keys(g.flasks).map(n => Number(n)).sort((a, b) => a - b);
 
   const currentIndex = Math.min(g.castIdx, CAST_ORDER.length - 1);
   const currentStone = CAST_ORDER[currentIndex];
 
-  // 以当前顺位排序的玩家列表
   const orderedPlayers = g.order.map((pid, idx) => {
     const p = g.players.find(x => x.id === pid)!;
     return { rank: idx + 1, player: p };
@@ -293,26 +297,33 @@ export default function App() {
   return (
     <div className="min-h-screen p-6 max-w-xl mx-auto space-y-4 bg-white">
       <div className="flex items-center justify-between">
-      <h1 className="text-2xl font-bold">愚者之石 · MVP</h1>
-      <button
+        <h1 className="text-2xl font-bold">愚者之石 · MVP</h1>
+        <button
           className="text-sm px-3 py-1 rounded border hover:bg-gray-50"
           onClick={() => setShowRules(true)}
         >
           获取规则
-      </button>
+        </button>
       </div>
 
-      {/* 顶部信息：一行显示（左阈值 / 右回合阶段） */}
-      <div className="p-3 border rounded">
+      {/* 顶部信息：阈值/回合阶段 + 天象占卜 */}
+      <div className="p-3 border rounded space-y-2">
         <div className="flex items-center justify-between text-sm">
           <span className="text-gray-600">终局阈值：明分 ≥ {endThreshold}</span>
           <span>
             回合：<b>{g.round}</b>　阶段：<b>{phaseLabel}</b>
           </span>
         </div>
+
+        {/* 新增：天象占卜公告 */}
+        {g.round >= 3 && g.phase === 'cast' && auguryStone && (
+          <div className="text-sm text-blue-700 bg-blue-50 border border-blue-200 rounded px-2 py-1">
+            天象占卜：本回合【<b>{auguryStone}</b>】效果增强
+          </div>
+        )}
       </div>
 
-      {/* 玩家回合顺位及明分（点击打开私密弹窗） */}
+      {/* 玩家回合顺位及明分 */}
       <div className="p-3 border rounded space-y-2">
         <div className="font-medium">玩家回合顺位及明分</div>
         <ul className="grid grid-cols-2 gap-2">
@@ -331,9 +342,7 @@ export default function App() {
                 }}
               >
                 <div className="flex items-center gap-2 min-w-0">
-                  <span className="w-6 h-6 flex items-center justify-center rounded-full bg-gray-900 text-white text-xs shrink-0">
-                    {rank}
-                  </span>
+                  <span className="w-6 h-6 flex items-center justify-center rounded-full bg-gray-900 text-white text-xs shrink-0">{rank}</span>
                   <span className="truncate">{player.name}</span>
                 </div>
                 <span className="ml-2 shrink-0">明 {s.pub}</span>
@@ -358,13 +367,7 @@ export default function App() {
               </div>
               <div className="flex flex-wrap gap-2">
                 {availableFlasks.map(no => (
-                  <button
-                    key={no}
-                    className="px-3 py-2 border rounded hover:bg-gray-50"
-                    onClick={() => discardFlask(no)}
-                  >
-                    {no}
-                  </button>
+                  <button key={no} className="px-3 py-2 border rounded hover:bg-gray-50" onClick={() => discardFlask(no)}>{no}</button>
                 ))}
               </div>
             </div>
@@ -373,13 +376,7 @@ export default function App() {
               <div className="font-medium mb-2">轮到 <b>{currentPickerName}</b> 选烧瓶：</div>
               <div className="flex flex-wrap gap-2">
                 {availableFlasks.map(no => (
-                  <button
-                    key={no}
-                    className="px-3 py-2 border rounded hover:bg-gray-50"
-                    onClick={() => pickFlask(no)}
-                  >
-                    {no}
-                  </button>
+                  <button key={no} className="px-3 py-2 border rounded hover:bg-gray-50" onClick={() => pickFlask(no)}>{no}</button>
                 ))}
               </div>
             </div>
@@ -394,24 +391,21 @@ export default function App() {
             施法顺序：
             {CAST_ORDER.map((st, idx) => (
               <span key={st} className={idx === g.castIdx ? 'px-1 font-bold text-blue-600' : 'px-1'}>
-                {st}
-                {idx < CAST_ORDER.length - 1 ? '→' : ''}
+                {st}{idx < CAST_ORDER.length - 1 ? '→' : ''}
               </span>
             ))}
           </div>
           <div className="flex items-center gap-2">
             <span className="text-sm text-gray-600">（当前：{currentStone}）</span>
-            <button className="px-3 py-2 border rounded" onClick={() => nextCast()}>
-              跳过当前
-            </button>
+            <button className="px-3 py-2 border rounded" onClick={() => nextCast()}>跳过当前</button>
           </div>
         </div>
       )}
 
-      {/* —— 私密查看对话框（两个阶段统一渲染） —— */}
+      {/* —— 私密查看对话框 —— */}
       {peekId && (() => {
         const player = g.players.find(p => p.id === peekId)!;
-        const stone = g.hands[peekId];
+        const stone = g.hands[peekId] as Stone | undefined;
         const canCast = !phaseIsSelect && stone === currentStone && g.castIdx < CAST_ORDER.length;
 
         const isWood  = canCast && stone === '木';
@@ -424,7 +418,6 @@ export default function App() {
         const role = player.isFool ? '愚者' : '贤者';
         const earthInitialId = g.initialHolder['土'];
 
-        // 愚者情报：烧瓶与炼金石的对应关系
         const locate = (map?: Record<number, string | undefined>) => {
           if (!map) return { sage: '-', fool: '-' };
           const entries = Object.entries(map);
@@ -435,7 +428,6 @@ export default function App() {
         const nowInfo  = locate(flaskMap as any);
         const nextInfo = locate(nextFlaskMap as any);
 
-        // 个人分数（含暗分）
         const myScore = g.scores[player.id];
         const myTotal = myScore.pub + myScore.sec;
 
@@ -448,12 +440,10 @@ export default function App() {
                 <div className="text-4xl font-extrabold tracking-widest">{stone ?? '（尚未拿到）'}</div>
                 <div className="text-gray-500">{player.name} 当前持有炼金石</div>
                 <div className="text-xs text-gray-600">你的身份：<b>{role}</b></div>
-                <div className="text-xs text-gray-600">
-                  你的分数：总 <b>{myTotal}</b>（明 <b>{myScore.pub}</b> / 暗 <b>{myScore.sec}</b>）
-                </div>
+                <div className="text-xs text-gray-600">你的分数：总 <b>{myTotal}</b>（明 <b>{myScore.pub}</b> / 暗 <b>{myScore.sec}</b>）</div>
               </div>
 
-              {/* 愚者：情报 & 捉弄（炼金阶段不可用；整局一次） */}
+              {/* 愚者情报 */}
               {player.isFool && (
                 <div className="mb-4 p-3 border rounded bg-yellow-50">
                   <div className="font-medium mb-1">愚者情报</div>
@@ -616,28 +606,24 @@ export default function App() {
                 </div>
               )}
 
-              {/* 不能施法的情况（施法阶段但不是当前石头） */}
               {!phaseIsSelect && !canCast && (
-                <button className="w-full px-3 py-2 rounded border" onClick={() => setPeekId(null)}>
-                  我看完了
-                </button>
+                <button className="w-full px-3 py-2 rounded border" onClick={() => setPeekId(null)}>我看完了</button>
               )}
             </div>
           </div>
         );
       })()}
 
-      {/* 公开日志（自动滚动，修复编号裁切） */}
+      {/* 公开日志 */}
       <div className="p-3 border rounded">
         <div className="font-medium mb-1">公开日志</div>
         <div ref={logRef} className="max-h-72 overflow-auto px-2">
           <ol className="list-decimal list-inside space-y-1">
-            {g.logs.map((l, i) => (
-              <li key={i}>{l}</li>
-            ))}
+            {g.logs.map((l, i) => (<li key={i}>{l}</li>))}
           </ol>
         </div>
       </div>
+
       {showRules && <RulesModal />}
     </div>
   );
