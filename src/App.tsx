@@ -32,6 +32,11 @@ export default function App() {
   const [names, setNames] = useState(['甲', '乙', '丙', '丁', '戊']);
   const [thresholdSel, setThresholdSel] = useState<number>(endThreshold);
 
+
+  // 新增：规则弹窗开关
+  const [showRules, setShowRules] = useState(false);
+
+
   // —— 日志自动滚动 —— //
   const logRef = useRef<HTMLDivElement | null>(null);
   const finalLogRef = useRef<HTMLDivElement | null>(null);
@@ -42,13 +47,51 @@ export default function App() {
     if (finalLogRef.current) finalLogRef.current.scrollTop = finalLogRef.current.scrollHeight;
   }, [isOver, g?.logs.length]);
 
+    const RulesModal = () => (
+    <div
+      className="fixed inset-0 bg-black/40 flex items-center justify-center z-50"
+      onClick={() => setShowRules(false)}
+    >
+      <div
+        className="bg-white rounded-xl p-5 w-[90%] max-w-sm shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="text-lg font-bold mb-2">获取游戏规则</div>
+        <p className="text-sm text-gray-700">
+          关注 <b>「JokerGame愚人博弈」</b> 微信服务号，进入后台，文字回复 <b>愚者之石</b> 即可获得游戏规则。
+        </p>
+
+        <img
+          src="/wechat-qrcode.jpg"
+          alt="JokerGame愚人博弈 微信服务号二维码"
+          className="w-40 h-40 mx-auto my-3 rounded"
+        />
+
+        <button
+          className="w-full px-3 py-2 rounded border mt-2"
+          onClick={() => setShowRules(false)}
+        >
+          我知道了
+        </button>
+      </div>
+    </div>
+  );
+
   // =========================
   //  终局画面
   // =========================
   if (isOver && g) {
     return (
       <div className="min-h-screen p-6 max-w-xl mx-auto space-y-4 bg-white">
+        <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">愚者之石 · 终局结算</h1>
+        <button
+            className="text-sm px-3 py-1 rounded border hover:bg-gray-50"
+            onClick={() => setShowRules(true)}
+          >
+            获取规则
+          </button>
+        </div>
         <div className="text-sm text-gray-600">阈值：明分 ≥ {endThreshold}</div>
 
         {/* 复盘：最终烧瓶 → 炼金石 */}
@@ -161,6 +204,7 @@ export default function App() {
             </ol>
           </div>
         </div>
+        {showRules && <RulesModal />}
       </div>
     );
   }
@@ -171,7 +215,17 @@ export default function App() {
   if (!g) {
     return (
       <div className="min-h-screen p-6 max-w-xl mx-auto space-y-4 bg-gray-50">
+      <div className="flex items-center justify-between">
+
         <h1 className="text-2xl font-bold">愚者之石 · MVP</h1>
+        <button
+            className="text-sm px-3 py-1 rounded border hover:bg-gray-50"
+            onClick={() => setShowRules(true)}
+          >
+            获取规则
+          </button>
+        </div>
+
         <p className="text-sm text-gray-600">先输入 5 位玩家名，选择终局阈值，然后开始对局。</p>
 
         <div className="grid grid-cols-5 gap-2">
@@ -209,6 +263,7 @@ export default function App() {
         >
           开始对局
         </button>
+       {showRules && <RulesModal />}
       </div>
     );
   }
@@ -237,7 +292,15 @@ export default function App() {
 
   return (
     <div className="min-h-screen p-6 max-w-xl mx-auto space-y-4 bg-white">
+      <div className="flex items-center justify-between">
       <h1 className="text-2xl font-bold">愚者之石 · MVP</h1>
+      <button
+          className="text-sm px-3 py-1 rounded border hover:bg-gray-50"
+          onClick={() => setShowRules(true)}
+        >
+          获取规则
+      </button>
+      </div>
 
       {/* 顶部信息：一行显示（左阈值 / 右回合阶段） */}
       <div className="p-3 border rounded">
@@ -575,6 +638,7 @@ export default function App() {
           </ol>
         </div>
       </div>
+      {showRules && <RulesModal />}
     </div>
   );
 }
