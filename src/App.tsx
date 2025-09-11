@@ -50,6 +50,18 @@ export default function App() {
     if (finalLogRef.current) finalLogRef.current.scrollTop = finalLogRef.current.scrollHeight;
   }, [isOver, g?.logs.length]);
 
+  // —— 选瓶后自动弹出“私密查看” —— //
+  const lastPickCountRef = useRef(0);
+  useEffect(() => {
+    if (!g) return;
+    const cur = g.picks.length;
+    if (cur > lastPickCountRef.current) {
+      const lastPick = g.picks[cur - 1];
+      if (lastPick) setPeekId(lastPick.playerId);
+    }
+    lastPickCountRef.current = cur;
+  }, [g?.picks.length, g?.round]);
+
   // —— 规则弹窗 —— //
   const RulesModal = () => (
     <div
@@ -458,142 +470,147 @@ export default function App() {
                 </div>
               )}
 
-              {/* 炼金阶段：只显示“我看完了” */}
-              {phaseIsSelect && (
+              {/* 炼金阶段：只渲染一个“我看完了”；施法阶段才渲染技能按钮 */}
+              {phaseIsSelect ? (
                 <button className="w-full px-3 py-2 rounded border" onClick={() => setPeekId(null)}>
                   我看完了
                 </button>
-              )}
-
-              {/* 木 */}
-              {!phaseIsSelect && isWood && (
+              ) : (
                 <>
-                  <div className="text-sm font-medium mb-2">选择一名玩家进行交换</div>
-                  <div className="flex flex-wrap gap-2 mb-3">
-                    {g.players.filter(x => x.id !== player.id).map(o => (
-                      <button
-                        key={o.id}
-                        className={`px-3 py-2 border rounded ${woodTarget === o.id ? 'bg-gray-900 text-white' : 'hover:bg-gray-50'}`}
-                        onClick={() => setWoodTarget(o.id)}
-                      >
-                        {o.name}
+                  {/* 木 */}
+                  {isWood && (
+                    <>
+                      <div className="text-sm font-medium mb-2">选择一名玩家进行交换</div>
+                      <div className="flex flex-wrap gap-2 mb-3">
+                        {g.players.filter(x => x.id !== player.id).map(o => (
+                          <button
+                            key={o.id}
+                            className={`px-3 py-2 border rounded ${woodTarget === o.id ? 'bg-gray-900 text-white' : 'hover:bg-gray-50'}`}
+                            onClick={() => setWoodTarget(o.id)}
+                          >
+                            {o.name}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          className="flex-1 px-3 py-2 rounded bg-black text-white disabled:opacity-40"
+                          disabled={!woodTarget}
+                          onClick={() => { castStone(player.id, '木', 'show', woodTarget!); setPeekId(null); setWoodTarget(null); }}
+                        >
+                          发动（展示）
+                        </button>
+                        <button className="px-3 py-2 rounded border" onClick={() => setPeekId(null)}>我看完了</button>
+                      </div>
+                    </>
+                  )}
+
+                  {/* 水 */}
+                  {isWater && (
+                    <>
+                      <div className="text-sm font-medium mb-2">选择两名玩家进行对调</div>
+                      <div className="flex flex-wrap gap-2 mb-3">
+                        {g.players.filter(x => x.id !== player.id).map(o => (
+                          <button
+                            key={o.id}
+                            className={`px-3 py-2 border rounded ${waterTargets.includes(o.id) ? 'bg-gray-900 text-white' : 'hover:bg-gray-50'}`}
+                            onClick={() => {
+                              setWaterTargets(prev => {
+                                if (prev.includes(o.id)) return prev.filter(x => x !== o.id);
+                                if (prev.length >= 2) return prev;
+                                return [...prev, o.id];
+                              });
+                            }}
+                          >
+                            {o.name}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="text-xs text-gray-500 mb-2">已选：{waterTargets.length} / 2</div>
+                      <div className="flex gap-2">
+                        <button
+                          className="flex-1 px-3 py-2 rounded bg-black text-white disabled:opacity-40"
+                          disabled={waterTargets.length !== 2}
+                          onClick={() => { castStone(player.id, '水', 'show', waterTargets[0], waterTargets[1]); setPeekId(null); setWaterTargets([]); }}
+                        >
+                          发动（展示）
+                        </button>
+                        <button className="px-3 py-2 rounded border" onClick={() => setPeekId(null)}>我看完了</button>
+                      </div>
+                    </>
+                  )}
+
+                  {/* 火 */}
+                  {isFire && (
+                    <>
+                      <div className="text-sm font-medium mb-2">选择一名玩家进行灼烧</div>
+                      <div className="flex flex-wrap gap-2 mb-3">
+                        {g.players.filter(x => x.id !== player.id).map(o => (
+                          <button
+                            key={o.id}
+                            className={`px-3 py-2 border rounded ${fireTarget === o.id ? 'bg-gray-900 text-white' : 'hover:bg-gray-50'}`}
+                            onClick={() => setFireTarget(o.id)}
+                          >
+                            {o.name}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          className="flex-1 px-3 py-2 rounded bg-black text-white disabled:opacity-40"
+                          disabled={!fireTarget}
+                          onClick={() => { castStone(player.id, '火', 'show', fireTarget!); setPeekId(null); setFireTarget(null); }}
+                        >
+                          发动（展示）
+                        </button>
+                        <button className="px-3 py-2 rounded border" onClick={() => setPeekId(null)}>我看完了</button>
+                      </div>
+                    </>
+                  )}
+
+                  {/* 土 */}
+                  {isEarth && (
+                    <div className="space-y-2">
+                      <div className="text-sm text-gray-600">只有本回合「土」的初始持有者可发动（+3 明分）。</div>
+                      <div className="flex gap-2">
+                        <button
+                          className="flex-1 px-3 py-2 rounded bg-black text-white disabled:opacity-40"
+                          disabled={earthInitialId !== player.id}
+                          title={earthInitialId === player.id ? '' : '你不是本回合「土」的初始持有者'}
+                          onClick={() => { castStone(player.id, '土', 'show'); setPeekId(null); }}
+                        >
+                          发动（展示）
+                        </button>
+                        <button className="px-3 py-2 rounded border" onClick={() => setPeekId(null)}>我看完了</button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 贤 / 愚：不可展示 */}
+                  {(isSage || isFool) && (
+                    <div className="space-y-3">
+                      <div className="text-sm text-gray-600">【{isSage ? '贤' : '愚'}】不可展示。请关闭弹窗，如需推进流程由主持人点击外部「跳过当前」。</div>
+                      <button className="w-full px-3 py-2 rounded border" onClick={() => setPeekId(null)}>我看完了</button>
+                    </div>
+                  )}
+
+                  {/* 金：普通展示 */}
+                  {!isWood && !isWater && !isFire && !isEarth && !isSage && !isFool && canCast && (
+                    <div className="flex gap-2">
+                      <button className="flex-1 px-3 py-2 rounded bg-black text-white" onClick={() => { castStone(player.id, stone!, 'show'); setPeekId(null); }}>
+                        发动（展示）
                       </button>
-                    ))}
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      className="flex-1 px-3 py-2 rounded bg-black text-white disabled:opacity-40"
-                      disabled={!woodTarget}
-                      onClick={() => { castStone(player.id, '木', 'show', woodTarget!); setPeekId(null); setWoodTarget(null); }}
-                    >
-                      发动（展示）
+                      <button className="px-3 py-2 rounded border" onClick={() => setPeekId(null)}>我看完了</button>
+                    </div>
+                  )}
+
+                  {/* 施法阶段但不能施法 */}
+                  {!canCast && (
+                    <button className="w-full px-3 py-2 rounded border" onClick={() => setPeekId(null)}>
+                      我看完了
                     </button>
-                    <button className="px-3 py-2 rounded border" onClick={() => setPeekId(null)}>我看完了</button>
-                  </div>
+                  )}
                 </>
-              )}
-
-              {/* 水 */}
-              {!phaseIsSelect && isWater && (
-                <>
-                  <div className="text-sm font-medium mb-2">选择两名玩家进行对调</div>
-                  <div className="flex flex-wrap gap-2 mb-3">
-                    {g.players.filter(x => x.id !== player.id).map(o => (
-                      <button
-                        key={o.id}
-                        className={`px-3 py-2 border rounded ${waterTargets.includes(o.id) ? 'bg-gray-900 text-white' : 'hover:bg-gray-50'}`}
-                        onClick={() => {
-                          setWaterTargets(prev => {
-                            if (prev.includes(o.id)) return prev.filter(x => x !== o.id);
-                            if (prev.length >= 2) return prev;
-                            return [...prev, o.id];
-                          });
-                        }}
-                      >
-                        {o.name}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="text-xs text-gray-500 mb-2">已选：{waterTargets.length} / 2</div>
-                  <div className="flex gap-2">
-                    <button
-                      className="flex-1 px-3 py-2 rounded bg-black text-white disabled:opacity-40"
-                      disabled={waterTargets.length !== 2}
-                      onClick={() => { castStone(player.id, '水', 'show', waterTargets[0], waterTargets[1]); setPeekId(null); setWaterTargets([]); }}
-                    >
-                      发动（展示）
-                    </button>
-                    <button className="px-3 py-2 rounded border" onClick={() => setPeekId(null)}>我看完了</button>
-                  </div>
-                </>
-              )}
-
-              {/* 火 */}
-              {!phaseIsSelect && isFire && (
-                <>
-                  <div className="text-sm font-medium mb-2">选择一名玩家进行灼烧</div>
-                  <div className="flex flex-wrap gap-2 mb-3">
-                    {g.players.filter(x => x.id !== player.id).map(o => (
-                      <button
-                        key={o.id}
-                        className={`px-3 py-2 border rounded ${fireTarget === o.id ? 'bg-gray-900 text-white' : 'hover:bg-gray-50'}`}
-                        onClick={() => setFireTarget(o.id)}
-                      >
-                        {o.name}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      className="flex-1 px-3 py-2 rounded bg-black text-white disabled:opacity-40"
-                      disabled={!fireTarget}
-                      onClick={() => { castStone(player.id, '火', 'show', fireTarget!); setPeekId(null); setFireTarget(null); }}
-                    >
-                      发动（展示）
-                    </button>
-                    <button className="px-3 py-2 rounded border" onClick={() => setPeekId(null)}>我看完了</button>
-                  </div>
-                </>
-              )}
-
-              {/* 土 */}
-              {!phaseIsSelect && isEarth && (
-                <div className="space-y-2">
-                  <div className="text-sm text-gray-600">只有本回合「土」的初始持有者可发动（+3 明分）。</div>
-                  <div className="flex gap-2">
-                    <button
-                      className="flex-1 px-3 py-2 rounded bg-black text-white disabled:opacity-40"
-                      disabled={earthInitialId !== player.id}
-                      title={earthInitialId === player.id ? '' : '你不是本回合「土」的初始持有者'}
-                      onClick={() => { castStone(player.id, '土', 'show'); setPeekId(null); }}
-                    >
-                      发动（展示）
-                    </button>
-                    <button className="px-3 py-2 rounded border" onClick={() => setPeekId(null)}>我看完了</button>
-                  </div>
-                </div>
-              )}
-
-              {/* 贤 / 愚：不可展示 */}
-              {!phaseIsSelect && (isSage || isFool) && (
-                <div className="space-y-3">
-                  <div className="text-sm text-gray-600">【{isSage ? '贤' : '愚'}】不可展示。请关闭弹窗，如需推进流程由主持人点击外部「跳过当前」。</div>
-                  <button className="w-full px-3 py-2 rounded border" onClick={() => setPeekId(null)}>我看完了</button>
-                </div>
-              )}
-
-              {/* 金：普通展示 */}
-              {!phaseIsSelect && !isWood && !isWater && !isFire && !isEarth && !isSage && !isFool && canCast && (
-                <div className="flex gap-2">
-                  <button className="flex-1 px-3 py-2 rounded bg-black text-white" onClick={() => { castStone(player.id, stone!, 'show'); setPeekId(null); }}>
-                    发动（展示）
-                  </button>
-                  <button className="px-3 py-2 rounded border" onClick={() => setPeekId(null)}>我看完了</button>
-                </div>
-              )}
-
-              {!phaseIsSelect && !canCast && (
-                <button className="w-full px-3 py-2 rounded border" onClick={() => setPeekId(null)}>我看完了</button>
               )}
             </div>
           </div>
