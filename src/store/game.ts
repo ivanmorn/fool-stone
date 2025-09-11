@@ -192,7 +192,8 @@ export const useGame = create<Store>()(
         delete gg.flasks[flaskNo];
         gg.discarded.push(flaskNo);
         const firstName = gg.players.find(p => p.id === gg.order[0])?.name ?? '1号';
-        gg.logs.push(`🗑️ ${firstName} 弃掉了烧瓶 ${flaskNo}`);
+        // 公共日志不暴露编号
+        gg.logs.push(`🗑️ ${firstName} 弃掉了一个烧瓶`);
       });
     },
 
@@ -221,7 +222,8 @@ export const useGame = create<Store>()(
         delete gg.flasks[flaskNo];
 
         const pname = gg.players.find(p => p.id === playerId)?.name ?? playerId;
-        gg.logs.push(`🧪 ${pname} 选择了烧瓶 ${flaskNo}`);
+        // 公共日志不暴露编号
+        gg.logs.push(`🧪 ${pname} 选择了一个烧瓶`);
 
         if (gg.picks.length === 5) {
           const left = Object.keys(gg.flasks).map(n => Number(n));
@@ -229,7 +231,8 @@ export const useGame = create<Store>()(
             const last = left[0];
             delete gg.flasks[last];
             gg.discarded.push(last);
-            gg.logs.push(`🗑️ 最后剩余的烧瓶 ${last} 被自动弃置`);
+            // 公共日志不暴露编号
+            gg.logs.push(`🗑️ 最后剩余的一个烧瓶被自动弃置`);
           }
           gg.phase = 'cast';
           gg.castIdx = 0;
