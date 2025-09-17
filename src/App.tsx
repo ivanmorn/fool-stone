@@ -52,7 +52,7 @@ export default function App() {
   const [woodTarget, setWoodTarget] = useState<string | null>(null);
   const [waterTargets, setWaterTargets] = useState<string[]>([]);
   const [fireTarget, setFireTarget] = useState<string | null>(null);
-  const [names, setNames] = useState(['甲', '乙', '丙', '丁', '戊']);
+  const [names, setNames] = useState(['玩家1', '玩家2', '玩家3', '玩家4', '玩家5']);
   const [thresholdSel, setThresholdSel] = useState<number>(endThreshold);
   const [showRules, setShowRules] = useState(false);
 
@@ -103,6 +103,24 @@ export default function App() {
     if (!presenceState) return Array.from({ length: 5 }, () => null);
     return Array.from({ length: 5 }, (_, idx) => presenceState.users.find(u => u.seat === idx + 1) ?? null);
   }, [presenceState]);
+
+  const myPlayerName = useMemo(() => {
+    if (!g || !myPlayerId) return myPlayerId;
+    const player = g.players.find(p => p.id === myPlayerId);
+    return player?.name ?? myPlayerId;
+  }, [g, myPlayerId]);
+
+  useEffect(() => {
+    if (!inRoom || !presenceState) return;
+    const seatNames = Array.from({ length: 5 }, (_, idx) => {
+      const user = presenceState.users.find(u => u.seat === idx + 1);
+      return user?.name?.trim().length ? user.name : `座位${idx + 1}`;
+    });
+    const same = seatNames.length === names.length && seatNames.every((n, i) => n === names[i]);
+    if (!same) {
+      setNames(seatNames);
+    }
+  }, [inRoom, presenceState, names]);
 
   const onlineCount = presenceState?.users.length ?? 0;
   const missingPlayers = Math.max(0, 5 - onlineCount);
@@ -640,7 +658,7 @@ export default function App() {
             })}
           </div>
           {inRoom && mySeat && (
-            <div className="text-xs text-gray-600">你的座位：<b>{mySeat}</b>（对应玩家 {myPlayerId ?? ''}）</div>
+            <div className="text-xs text-gray-600">你的座位：<b>{mySeat}</b>（玩家 {myPlayerName ?? '—'}）</div>
           )}
           {isHost && onlineCount < 5 && (
             <div className="text-xs text-red-600">还有 {missingPlayers} 位玩家未入局，建议等待再继续。</div>
