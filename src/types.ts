@@ -5,6 +5,15 @@ export type Phase = 'select'|'cast'|'end';
 export interface Player { id: string; name: string; isFool?: boolean; }
 export interface Score { pub: number; sec: number; }
 export interface Pick { playerId: string; flask: number; stone: Stone; }
+export interface FinalRankRow {
+  playerId: string;
+  name: string;
+  pub: number;
+  sec: number;
+  total: number;
+  place: number;
+  reward: number;
+}
 
 export interface Game {
   id: string;
@@ -22,4 +31,16 @@ export interface Game {
   initialHolder: Record<Stone, string|null>; // 本回合石头初始持有者
   logs: string[];                          // 公开日志
   castIdx: number;                         // 施法顺序指针（占位）
+  omenStone?: Stone | null;
+}
+
+export interface GameSnapshot {
+  game: Game | null;
+  endThreshold: number;
+  isOver: boolean;
+  finalRanks: FinalRankRow[] | null;
+  flaskMap: Record<number, Stone> | null;
+  nextFlaskMap: Record<number, Stone> | null;
+  foolPrankUsed: boolean;
+  roundStartScores: Record<string, Score> | null;
 }

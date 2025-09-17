@@ -2,7 +2,7 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import seedrandom from 'seedrandom';
-import type { Game, Player, Score, Stone } from '../types';
+import type { Game, Player, Score, Stone, FinalRankRow, GameSnapshot } from '../types';
 import { STONES } from '../types';
 
 function shuffle<T>(seed: string, arr: T[]) {
@@ -20,15 +20,7 @@ function emptyInitialHolder(): Record<Stone, string | null> {
 
 const ORDER: Stone[] = ['金', '木', '水', '火', '土', '贤', '愚'];
 
-type FinalRow = {
-  playerId: string;
-  name: string;
-  pub: number;
-  sec: number;
-  total: number;
-  place: number;
-  reward: number;
-};
+const deepCopy = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 
 type Store = {
   game: Game | null;
@@ -37,7 +29,7 @@ type Store = {
   setEndThreshold: (n: number) => void;
 
   isOver: boolean;
-  finalRanks: FinalRow[] | null;
+  finalRanks: FinalRankRow[] | null;
 
   flaskMap: Record<number, Stone> | null;
   nextFlaskMap: Record<number, Stone> | null;
@@ -61,6 +53,9 @@ type Store = {
   ) => void;
 
   foolPrank: () => void;
+
+  exportSnapshot: () => GameSnapshot;
+  applySnapshot: (snapshot: GameSnapshot) => void;
 };
 
 export const useGame = create<Store>()(
@@ -93,12 +88,14 @@ export const useGame = create<Store>()(
       players[foolIndex].isFool = true;
 
       const order = shuffle(seed + '#order', players.map(p => p.id));
-      const scores: Record<string, Score> = Object.fromEntries(
-        players.map(p => [p.id, { pub: 0, sec: 0 }])
-      ) as any;
-      const hands: Record<string, Stone | null> = Object.fromEntries(
-        players.map(p => [p.id, null])
-      ) as any;
+      const scores = players.reduce<Record<string, Score>>((acc, p) => {
+        acc[p.id] = { pub: 0, sec: 0 };
+        return acc;
+      }, {});
+      const hands = players.reduce<Record<string, Stone | null>>((acc, p) => {
+        acc[p.id] = null;
+        return acc;
+      }, {});
 
       // 固定：烧瓶 → 炼金石（1..7）
       const fixed = Object.fromEntries(
@@ -120,6 +117,7 @@ export const useGame = create<Store>()(
         initialHolder: emptyInitialHolder(),
         logs: ['对局开始。愚者已随机确定。'],
         castIdx: 0,
+        omenStone: null,
       };
 
       set(state => {
@@ -170,10 +168,10 @@ export const useGame = create<Store>()(
           const choices: Stone[] = ['金', '木', '水', '火', '土', '贤', '愚'];
           const rng = seedrandom(gg.seed + '#omen#round=' + gg.round);
           const omen = choices[Math.floor(rng() * choices.length)];
-          (gg as any).omenStone = omen;
+          gg.omenStone = omen;
           gg.logs.push(`🔮 天象占卜：本回合【${omen}】效果增强（仅当回合有效，不影响终局加成）`);
         } else {
-          (gg as any).omenStone = null;
+          gg.omenStone = null;
         }
 
         // 清空所有手牌
@@ -215,7 +213,7 @@ export const useGame = create<Store>()(
           gg.initialHolder[stone] = playerId;
 
           // 愚：初始持有者 +1 暗分（若天象为“愚”，则 +2）
-          const omen: Stone | null = (gg as any).omenStone ?? null;
+          const omen: Stone | null = gg.omenStone ?? null;
           gg.scores[playerId].sec += (stone === '愚' ? (omen === '愚' ? 2 : 1) : 0);
         }
         gg.picks.push({ playerId, flask: flaskNo, stone });
@@ -250,7 +248,7 @@ export const useGame = create<Store>()(
         const gg = state.game!;
         if (gg.phase !== 'cast') return;
 
-        const omen: Stone | null = (gg as any).omenStone ?? null;
+        const omen: Stone | null = gg.omenStone ?? null;
         const current = ORDER[gg.castIdx];
         let justFinishedEarth = false;
 
@@ -274,7 +272,7 @@ export const useGame = create<Store>()(
           while (gg.castIdx < ORDER.length) {
             const st = ORDER[gg.castIdx];
             if (st === '贤') {
-              const add = 2 + (omen === '贤' ? 1 : 0);
+              const add = 2 + (gg.omenStone === '贤' ? 1 : 0);
               gg.logs.push(`➡️ 轮到【贤】发动`);
               gg.logs.push(`🧠 【贤】不公开（持有者 +${add} 暗分)`);
               const holder = gg.players.find(p => gg.hands[p.id] === '贤');
@@ -283,8 +281,9 @@ export const useGame = create<Store>()(
               continue;
             }
             if (st === '愚') {
+              const foolBoost = gg.omenStone === '愚' ? 2 : 1;
               gg.logs.push(`➡️ 轮到【愚】发动`);
-              gg.logs.push(`🃏 【愚】不公开（回合初始持有者+${omen==='愚'?2:1}暗分，回合最终持有者-2暗分)`);
+              gg.logs.push(`🃏 【愚】不公开（回合初始持有者+${foolBoost}暗分，回合最终持有者-2暗分)`);
               gg.castIdx += 1;
               continue;
             }
@@ -355,7 +354,7 @@ export const useGame = create<Store>()(
             });
 
             const rewards = [100,50,30,10,10];
-            const finalRanks: FinalRow[] = rows.map((r, i) => ({
+            const finalRanks: FinalRankRow[] = rows.map((r, i) => ({
               ...r, place: i+1, reward: rewards[i] ?? 10
             }));
 
@@ -378,7 +377,7 @@ export const useGame = create<Store>()(
         if (state.isOver) return;
         if (gg.phase !== 'cast') return;
 
-        const omen: Stone | null = (gg as any).omenStone ?? null;
+          const omen: Stone | null = gg.omenStone ?? null;
         const current = ORDER[gg.castIdx];
         if (stone !== current) {
           gg.logs.push(`⚠️ 现在轮到【${current}】，不是【${stone}】`);
@@ -457,16 +456,17 @@ export const useGame = create<Store>()(
               // 展示先 +1 明分（固定）
               gg.scores[playerId].pub += 1;
 
+              const fireBoost = gg.omenStone === '火' ? 1 : 0;
               if (tStone === '木') {
                 // 命中木：自再 +2（若天象火，则再 +1），目标 -2
-                gg.scores[playerId].pub += 2 + ( ( (gg as any).omenStone === '火') ? 1 : 0 );
+                gg.scores[playerId].pub += 2 + fireBoost;
                 gg.scores[targetId].pub -= 2;
-                gg.logs.push(`🔥 ${pname} 展示了【火】，灼烧${tname}成功（${pname}+${2 + (( (gg as any).omenStone === '火') ? 1 : 0)}明分，${tname}-2明分）`);
+                gg.logs.push(`🔥 ${pname} 展示了【火】，灼烧${tname}成功（${pname}+${2 + fireBoost}明分，${tname}-2明分）`);
               } else {
                 // 未命中：自再 -1，目标 +1（若天象火，则目标额外 +1）
                 gg.scores[playerId].pub -= 1;
-                gg.scores[targetId].pub += 1 + ( ( (gg as any).omenStone === '火') ? 1 : 0 );
-                gg.logs.push(`🔥 ${pname} 展示了【火】，灼烧${tname}失败（${pname}-1明分，${tname}+${1 + (( (gg as any).omenStone === '火') ? 1 : 0)}明分）`);
+                gg.scores[targetId].pub += 1 + fireBoost;
+                gg.logs.push(`🔥 ${pname} 展示了【火】，灼烧${tname}失败（${pname}-1明分，${tname}+${1 + fireBoost}明分）`);
               }
               gg.castIdx += 1;
               break;
@@ -496,7 +496,7 @@ export const useGame = create<Store>()(
 
         // —— 土后自动跑完“贤/愚” —— //
         const runAutoSageFool = () => {
-          const omen2: Stone | null = (gg as any).omenStone ?? null;
+          const omen2: Stone | null = gg.omenStone ?? null;
           while (gg.castIdx < ORDER.length) {
             const st = ORDER[gg.castIdx];
             if (st === '贤') {
@@ -579,7 +579,7 @@ export const useGame = create<Store>()(
             });
 
             const rewards = [100,50,30,10,10];
-            const finalRanks: FinalRow[] = rows.map((r, i) => ({
+            const finalRanks: FinalRankRow[] = rows.map((r, i) => ({
               ...r, place: i+1, reward: rewards[i] ?? 10
             }));
 
@@ -607,5 +607,35 @@ export const useGame = create<Store>()(
         // 不公开日志
       });
     },
+
+    exportSnapshot: () => {
+      const state = get();
+      return {
+        game: state.game ? deepCopy(state.game) : null,
+        endThreshold: state.endThreshold,
+        isOver: state.isOver,
+        finalRanks: state.finalRanks ? deepCopy(state.finalRanks) : null,
+        flaskMap: state.flaskMap ? deepCopy(state.flaskMap) : null,
+        nextFlaskMap: state.nextFlaskMap ? deepCopy(state.nextFlaskMap) : null,
+        foolPrankUsed: state.foolPrankUsed,
+        roundStartScores: state.roundStartScores ? deepCopy(state.roundStartScores) : null,
+      } satisfies GameSnapshot;
+    },
+
+    applySnapshot: (snapshot) => {
+      set(state => {
+        state.endThreshold = snapshot.endThreshold;
+        state.isOver = snapshot.isOver;
+        state.finalRanks = snapshot.finalRanks ? deepCopy(snapshot.finalRanks) : null;
+        state.flaskMap = snapshot.flaskMap ? deepCopy(snapshot.flaskMap) : null;
+        state.nextFlaskMap = snapshot.nextFlaskMap ? deepCopy(snapshot.nextFlaskMap) : null;
+        state.foolPrankUsed = snapshot.foolPrankUsed;
+        state.roundStartScores = snapshot.roundStartScores ? deepCopy(snapshot.roundStartScores) : null;
+        state.game = snapshot.game ? deepCopy(snapshot.game) : null;
+      });
+    },
   }))
 );
+
+export const exportSnapshot = () => useGame.getState().exportSnapshot();
+export const applySnapshot = (snapshot: GameSnapshot) => useGame.getState().applySnapshot(snapshot);
