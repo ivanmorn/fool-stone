@@ -1,32 +1,35 @@
 // src/online/Panel.tsx
 import { useEffect, useState } from "react";
-import { rt, getSessionId, type PresenceState } from "../realtime/socket";
+import rt, {
+  onConnection,
+  isConnected,
+  getSessionId,
+  type PresenceState,
+} from "../realtime/socket";
 
 type CreateReq = { name: string; sessionId: string };
-type CreateResp = { ok: boolean; code?: string; reason?: string };
+type CreateResp = { ok: boolean; code?: string; msg?: string }; // 服务器返回的是 msg
 type JoinReq = { code: string; name: string; sessionId: string };
-type JoinResp   = { ok: boolean; reason?: string };
+type JoinResp = { ok: boolean; msg?: string };                  // 服务器返回的是 msg
 
 export default function OnlinePanel() {
-  const [connected, setConnected] = useState(false);
-  const [name, setName] = useState(localStorage.getItem("name") || "");
-  const [code, setCode] = useState(localStorage.getItem("lastRoomCode") || "");
-  const [creating, setCreating] = useState(false);
-  const [joining, setJoining]   = useState(false);
+  // 连接状态：用 socket.ts 提供的订阅 API
+  const [connected, setConnected] = useState<boolean>(isConnected());
+
+  const [name, setName] = useState<string>(localStorage.getItem("name") || "");
+  const [code, setCode] = useState<string>(localStorage.getItem("lastRoomCode") || "");
+  const [creating, setCreating] = useState<boolean>(false);
+  const [joining, setJoining] = useState<boolean>(false);
   const [presence, setPresence] = useState<PresenceState | null>(() => rt.getPresence());
 
+  // 建立连接 & 订阅连接状态
   useEffect(() => {
-    const s = rt.getSocket();
-    const onC = () => setConnected(true);
-    const onD = () => setConnected(false);
-    s.on("connect", onC);
-    s.on("disconnect", onD);
-    return () => {
-      s.off("connect", onC);
-      s.off("disconnect", onD);
-    };
+    rt.getSocket(); // 页面挂载时发起连接
+    const off = onConnection(setConnected);
+    return off;
   }, []);
 
+  // 订阅在场状态
   useEffect(() => {
     const off = rt.subscribePresence((state) => {
       setPresence(state);
@@ -37,6 +40,7 @@ export default function OnlinePanel() {
     return () => off();
   }, []);
 
+  // 创建房间
   async function handleCreate() {
     if (!name.trim()) return;
     setCreating(true);
@@ -49,7 +53,7 @@ export default function OnlinePanel() {
         localStorage.setItem("lastRoomCode", resp.code);
         alert(`房间已创建：${resp.code}`);
       } else {
-        alert(`创建失败：${resp?.reason ?? "未知原因"}`);
+        alert(`创建失败：${resp?.msg ?? "未知原因"}`);
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
@@ -59,6 +63,7 @@ export default function OnlinePanel() {
     }
   }
 
+  // 加入房间
   async function handleJoin() {
     const roomCode = code.trim();
     if (!name.trim() || roomCode.length !== 4) return;
@@ -71,7 +76,7 @@ export default function OnlinePanel() {
         localStorage.setItem("lastRoomCode", roomCode);
         alert(`已加入房间：${roomCode}`);
       } else {
-        alert(`加入失败：${resp?.reason ?? "未知原因"}`);
+        alert(`加入失败：${resp?.msg ?? "未知原因"}`);
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
@@ -81,6 +86,7 @@ export default function OnlinePanel() {
     }
   }
 
+  // UI 辅助
   const players = presence?.users ?? [];
   const mySession = getSessionId();
   const seats = Array.from({ length: 5 }, (_, idx) => players.find(u => u.seat === idx + 1) ?? null);
@@ -88,7 +94,9 @@ export default function OnlinePanel() {
 
   return (
     <div>
-      <div className="text-xs text-gray-500 mb-2">连接：{connected ? "已连接" : "未连接"}</div>
+      <div className="text-xs text-gray-500 mb-2">
+        连接：{connected ? "已连接" : "未连接"}
+      </div>
 
       <div className="border-b pb-3 mb-3">
         <div className="text-sm font-medium mb-2">创建房间</div>
