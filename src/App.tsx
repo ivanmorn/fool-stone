@@ -33,6 +33,8 @@ export default function App() {
   const foolPrankUsed = useGame(s => s.foolPrankUsed);
   const roundStartScores = useGame(s => s.roundStartScores);
 
+  const flaskImageSrc = useCallback((no: number) => `/flasks/${no}.png`, []);
+
   // —— 天象占卜（从 game 对象读取；第3回合起可能有值） —— //
   const omenStone = useGame((s) => {
     const game = s.game as (typeof s.game & { omenStone?: Stone | null }) | null;
@@ -720,11 +722,13 @@ export default function App() {
                 {availableFlasks.map(no => (
                   <button
                     key={no}
-                    className={`px-3 py-2 border rounded ${canDiscardNow ? 'hover:bg-gray-50' : 'cursor-not-allowed text-gray-400 bg-gray-100'}`}
+                    type="button"
+                    className={`flask-card ${canDiscardNow ? 'flask-card--active' : 'flask-card--disabled'}`}
                     disabled={!canDiscardNow}
                     onClick={() => { if (canDiscardNow) discardFlask(no); }}
                   >
-                    {no}
+                    <img src={flaskImageSrc(no)} alt={`烧瓶 ${no}`} loading="lazy" />
+                    <span className="flask-card__label">{no}</span>
                   </button>
                 ))}
               </div>
@@ -736,11 +740,13 @@ export default function App() {
                 {availableFlasks.map(no => (
                   <button
                     key={no}
-                    className={`px-3 py-2 border rounded ${canPickNow ? 'hover:bg-gray-50' : 'cursor-not-allowed text-gray-400 bg-gray-100'}`}
+                    type="button"
+                    className={`flask-card ${canPickNow ? 'flask-card--active' : 'flask-card--disabled'}`}
                     disabled={!canPickNow}
                     onClick={() => { if (canPickNow) pickFlask(no); }}
                   >
-                    {no}
+                    <img src={flaskImageSrc(no)} alt={`烧瓶 ${no}`} loading="lazy" />
+                    <span className="flask-card__label">{no}</span>
                   </button>
                 ))}
               </div>
